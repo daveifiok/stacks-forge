@@ -81,3 +81,82 @@
     (ok (var-set contract-owner new-owner))
   )
 )
+
+;; Dynamic yield rate optimization (governance-controlled)
+(define-public (set-reward-rate (new-rate uint))
+  (begin
+    (asserts! (is-eq tx-sender (var-get contract-owner)) ERR_NOT_AUTHORIZED)
+    (asserts! (< new-rate u1000) ERR_INVALID_REWARD_RATE)
+    (ok (var-set reward-rate new-rate))
+  )
+)
+
+;; Security parameter adjustment for minimum staking duration
+(define-public (set-min-stake-period (new-period uint))
+  (begin
+    (asserts! (is-eq tx-sender (var-get contract-owner)) ERR_NOT_AUTHORIZED)
+    (asserts! (> new-period u0) ERR_INVALID_PERIOD)
+    (ok (var-set min-stake-period new-period))
+  )
+)
+
+;; Treasury funding mechanism for sustainable rewards
+(define-public (add-to-reward-pool (amount uint))
+  (begin
+    (asserts! (> amount u0) ERR_ZERO_STAKE)
+    ;; Secure sBTC transfer to protocol vault
+    (try! (contract-call? 'ST1F7QA2MDF17S807EPA36TSS8AMEFY4KA9TVGWXT.sbtc-token
+      transfer amount tx-sender (as-contract tx-sender) none
+    ))
+    ;; Expand reward distribution capacity
+    (var-set reward-pool (+ (var-get reward-pool) amount))
+    (ok true)
+  )
+)
+
+;; CORE STAKING & YIELD GENERATION FUNCTIONS
+
+;; Deposit sBTC into yield-generating vaults
+(define-public (stake (amount uint))
+  (begin
+    (asserts! (> amount u0) ERR_ZERO_STAKE)
+    ;; Execute secure token transfer to protocol custody
+    (try! (contract-call? 'ST1F7QA2MDF17S807EPA36TSS8AMEFY4KA9TVGWXT.sbtc-token
+      transfer amount tx-sender (as-contract tx-sender) none
+    ))
+    ;; Intelligent position management with compounding logic
+    (match (map-get? stakes { staker: tx-sender })
+      prev-stake
+      ;; Compound existing position with optimized timing
+      (map-set stakes { staker: tx-sender } {
+        amount: (+ amount (get amount prev-stake)),
+        staked-at: stacks-block-height,
+      })
+      ;; Initialize new yield-generating position
+      (map-set stakes { staker: tx-sender } {
+        amount: amount,
+        staked-at: stacks-block-height,
+      })
+    )
+    ;; Update protocol TVL metrics
+    (var-set total-staked (+ (var-get total-staked) amount))
+    (ok true)
+  )
+)
+
+;; Advanced time-weighted reward calculation algorithm
+(define-read-only (calculate-rewards (staker principal))
+  (match (map-get? stakes { staker: staker })
+    stake-info (let (
+        (stake-amount (get amount stake-info))
+        (stake-duration (- stacks-block-height (get staked-at stake-info)))
+        (reward-basis (/ (* stake-amount (var-get reward-rate)) u1000))
+        (blocks-per-year u52560)
+        (time-factor (/ (* stake-duration u10000) blocks-per-year))
+        (reward (* reward-basis (/ time-factor u10000)))
+      )
+      reward
+    )
+    u0
+  )
+)
