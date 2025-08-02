@@ -222,3 +222,53 @@
     (ok true)
   )
 )
+
+;; READ-ONLY QUERY FUNCTIONS & ANALYTICS
+
+;; Retrieve comprehensive user staking position data
+(define-read-only (get-stake-info (staker principal))
+  (map-get? stakes { staker: staker })
+)
+
+;; Query historical reward distribution records
+(define-read-only (get-rewards-claimed (staker principal))
+  (map-get? rewards-claimed { staker: staker })
+)
+
+;; Current dynamic yield rate in basis points
+(define-read-only (get-reward-rate)
+  (var-get reward-rate)
+)
+
+;; Security parameter: minimum staking duration
+(define-read-only (get-min-stake-period)
+  (var-get min-stake-period)
+)
+
+;; Treasury reserves available for reward distribution
+(define-read-only (get-reward-pool)
+  (var-get reward-pool)
+)
+
+;; Total value locked across the entire protocol
+(define-read-only (get-total-staked)
+  (var-get total-staked)
+)
+
+;; Real-time APY calculation based on current parameters
+(define-read-only (get-current-apy)
+  (let ((rate-basis (var-get reward-rate)))
+    (* rate-basis u100)
+  )
+)
+
+;; Comprehensive protocol health and performance metrics
+(define-read-only (get-protocol-stats)
+  {
+    total-staked: (var-get total-staked),
+    reward-pool: (var-get reward-pool),
+    reward-rate: (var-get reward-rate),
+    min-stake-period: (var-get min-stake-period),
+    current-apy: (get-current-apy),
+  }
+)
